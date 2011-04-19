@@ -1,0 +1,11 @@
+This is an application to annotate corpus. The input is a
+format like:
+		1-1 xxx
+		1-2 xxx
+		2-1 xxxx
+The number before '-' is the id of an entry and the number
+after '-' is a number which represents a attribute of the
+entry. Right now, the app can only read file format like
+this.
+The app is written in Python and I create the gui with
+Tkinter.
