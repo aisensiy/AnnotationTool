@@ -61,7 +61,6 @@ class TextArea(Frame):
 		self.current_id = -1
 		self.gotoframe = GoToButton(self)
 		self.gotoframe.pack(side=LEFT)
-		self.gotoframe.goto.config(command=self.gotoaction)
 		self.statusbox = Entry(self, state='readonly', width=12, textvariable=self.current_prog)
 		self.statusbox.pack(side=RIGHT)
 
@@ -157,10 +156,12 @@ class Radiobar(Frame):
 	def select(self, value): self.var.set(value)
 
 class RadioList(Frame):
-	def __init__(self, parent=None, side=LEFT, anchor=W, id=-1, **options):
+	def __init__(self, id, parent=None, side=LEFT, anchor=W, **options):
 		Frame.__init__(self, parent, **options)
 #		Button(self, text='SHOW', command=self.printannotations).pack(side=TOP)
-		self.annotations = {'id': id, 'elements': []} 
+		# self.annotations = {'id': id, 'elements': []} 
+		self.id = id
+		self.annotations = []
 	
 	def addframe(self, text, value):
 		fm = Frame(self)
@@ -171,18 +172,18 @@ class RadioList(Frame):
 		radiobar.select(value)
 		Button(fm, text=deletetext,
 			command=(lambda frame=fm, kv=(text, value): self.removeaction(frame, kv))).pack(side=RIGHT)
-		self.annotations['elements'].append((text, radiobar))
+		self.annotations.append((text, radiobar))
 	
 	def removeaction(self, frame, kv):
-		annos = self.totuple(self.annotations['elements'])
+		annos = self.totuple(self.annotations)
 		print 'remove debug'
 		print annos
 		print kv[0], kv[1]
 		for i in range(len(annos)):
 			if kv[0] == annos[i][0] and kv[1] == annos[i][1]:
-				self.annotations['elements'].remove(self.annotations['elements'][i])
+				self.annotations.remove(self.annotations[i])
 				break
-		print self.annotations['elements']
+		print self.annotations
 		frame.destroy()
 	
 	def totuple(self, anns):
@@ -201,6 +202,7 @@ class MainFrame():
 		self.selector.pack(fill=X, side=TOP)
 		self.area = TextArea(self.root, bd=2)
 		self.area.pack(side=TOP, fill=X)
+		self.area.gotoframe.goto.config(command=self.gotoaction)
 		Button(self.root, text='NEXT', command=self.nextaction).pack(side=TOP, fill=X)
 		self.radbar = Radiobar(self.root, entities, side=LEFT)
 		self.radbar.pack(side=TOP)
@@ -210,19 +212,19 @@ class MainFrame():
 		self.selector.loadbntaction(self.loadfile)
 		self.area.bindselectedaction("<ButtonRelease-1>", (lambda event: self.selecttextact()))
 
-		self.annotations = []
+		self.annotations = {}
 
 
 	def annotationisnone(self):
-		for elem in self.annotations:
-			if elem['elements'] is not None and len(elem['elements']) > 0: return False
+		for k, v in self.annotations.items():
+			if v is not None and len(v) > 0: return False
 		return True
 
 	def loadfile(self):
-		"""before load a new file, we should persistent the annotation
+		"""load a new file, before load a new file, we should persistent the annotation
 		xml file if the annotation is not []"""
 		self.toxml()
-		self.annotations = []
+		self.annotations = {}
 		self.selector.getfile()
 		self.area.loadfile(self.selector.file)
 		self.reloadradiolist(self.area.current_id)
@@ -238,17 +240,21 @@ class MainFrame():
 		except:
 			self.radbar.disableradios()
 	
-	def reloadradiolist(self, id=-1, annotations=[]):
+	def reloadradiolist(self, id, annotations=[]):
 		self.radlist.destroy()
-		self.radlist = RadioList(self.root, bd=2, id=id)
+		self.radlist = RadioList(id, self.root, bd=2)
 		self.radlist.pack(side=TOP)
 		for text, value in annotations:
 			self.radlist.addframe(text, value)
 	
 	def nextaction(self):
-		self.annotations.append(self.radlist.annotations)
+		self.annotations[self.radlist.id] = self.radlist.annotations
 		self.toxml()
 		self.area.next()
+		self.reloadradiolist(id=self.area.current_id)
+	
+	def gotoaction(self):
+		self.area.gotoaction()
 		self.reloadradiolist(id=self.area.current_id)
 		
 	def toxml(self):
@@ -257,11 +263,12 @@ class MainFrame():
 #		print filename
 		file = open(rename(self.selector.filename.get(), extra), 'w')
 		xmldoc = xmlinit()
-		for elem in self.annotations:
-			a = elem['elements']
-			if a != []:
-				b = self.radlist.totuple(a)
-				xmldoc.firstChild.appendChild(createtop(xmldoc, b, str(elem['id'])))
+		tuples = [(k, v) for k, v in self.annotations.items()]
+		tuples.sort()
+		for k, v in tuples:
+			if v != []:
+				b = self.radlist.totuple(v)
+				xmldoc.firstChild.appendChild(createtop(xmldoc, b, str(k)))
 		#open(filename, 'w').write(xmldoc.toprettyxml())
 		xmldoc.writexml(codecs.open(filename, 'w', encoding='utf8'), '', '  ', '\n', encoding)
 		file.close()
